@@ -47,6 +47,7 @@ __revision__ = "$Id$"
 BASENAME='vSPC.py'
 
 import logging
+import optparse
 import os
 import pickle
 import select
@@ -691,6 +692,7 @@ class vSPCBackendFile(vSPCBackendMemory):
     def setup(self, args):
         import shlex
         import shelve
+        import getopt
 
         fname = None
 
@@ -1214,107 +1216,72 @@ Server (with --server):
        BASENAME, VM_EXPIRE_TIME, BASENAME, BASENAME, BASENAME,
        ADMIN_PORT, PROXY_PORT, VM_PORT_START))
 
+def handle_persist_file(option, opt_str, value, parser):
+    import pipes
+    parser.values.backend_type_name = "File"
+    parser.values.backend_args = "-f %s" % pipes.quote(value)
+
 if __name__ == '__main__':
-    import getopt
+    parser = optparse.OptionParser(add_help_option=True)
 
-    proxy_port = PROXY_PORT
-    admin_port = ADMIN_PORT
-    vm_port_start = VM_PORT_START
-    vm_expire_time = VM_EXPIRE_TIME
-    debug = False
-    syslog = True
-    fork = True
-    server_mode = False
-    backend_type_name = 'Memory'
-    backend_args = ''
-    use_ssl = False
-    ssl_cert = None
-    ssl_key = None
-    pidfile = None
+    parser.add_option("-a", "--admin-port", type="int", default=ADMIN_PORT,
+                      help='The port to listen/use for queries (default %s)' % ADMIN_PORT)
+    parser.add_option("-f", "--persist-file", type='string', action='callback', callback=handle_persist_file,
+                      help='DBM file prefix to persist mappings to (.dat/.dir may follow)')
+    parser.add_option("-d", "--debug", action='store_true', default=False,
+                      help="Debug mode (turns up logging and implies --stdout --no-fork)")
+    parser.add_option("-p", "--proxy-port", type="int", default=PROXY_PORT,
+                      help="The proxy port to listen on (default %s)" % PROXY_PORT)
+    parser.add_option("-r", "--port-range-start", type='int', default=VM_PORT_START, dest="vm_port_start",
+                      help="What port to start port allocations from (default %s)" % VM_PORT_START)
+    parser.add_option("-s", "--server", action='store_true', default=False, dest="server_mode",
+                      help="Run vSPC.py as a daemon")
+    parser.add_option("--stdout", action='store_true', default=False,
+                      help="Log to stdout instead of syslog")
+    parser.add_option("--no-fork", action='store_true', default=False,
+                      help="Don't daemonize")
+    parser.add_option("--ssl", action='store_true', default=False, dest="use_ssl",
+                      help="Start SSL/TLS on connections to the proxy port")
+    parser.add_option("--cert", type='string', default=None, dest="ssl_cert",
+                      help="The certificate or PEM file to present on the proxy port, if SSL/TLS is enabled")
+    parser.add_option("--key", type='string', default=None, dest="ssl_key",
+                      help="The key, if necessary, to the certificate given by --cert")
+    parser.add_option("--backend", type='string', default="Memory", dest="backend_type_name",
+                      help='Name of custom backend class')
+    parser.add_option("--backend-args", type='string', default="",
+                      help="Arguments to custom backend")
+    parser.add_option("--backend-help", action='store_true', default=False,
+                      help='Print backend programming details')
+    parser.add_option("--pidfile", type='string', default=None,
+                      help="The file to write the process id of the server to (no file by default)")
+    parser.add_option("--vm-expire-time", type='int', default=VM_EXPIRE_TIME,
+                      help="How long to wait before expiring a mapping with no connections")
+    (opts, args) = parser.parse_args()
 
-    try:
-        opts, args = getopt.gnu_getopt(sys.argv[1:], 'a:f:hdp:r:s',
-                                       ['help', 'debug', 'admin-port=',
-                                        'proxy-port=', 'port-range-start=',
-                                        'server', 'stdout', 'no-fork', 'ssl',
-                                        'vm-expire-time=', "cert=", "key=",
-                                        'backend=', 'backend-args=',
-                                        'backend-help',
-                                        'persist-file=', 'pidfile='])
-        for o,a in opts:
-            if o in ['-h', '--help']:
-                usage()
-                sys.exit(0)
-            elif o in ['-d', '--debug']:
-                debug = True
-                syslog = False
-                fork = False
-            elif o in ['-a', '--admin-port']:
-                admin_port = int(a)
-            elif o in ['-p', '--proxy-port']:
-                proxy_port = int(a)
-            elif o in ['-r', '--port-range-start']:
-                vm_port_start = int(a)
-            elif o in ['-s', '--server']:
-                server_mode = True
-            elif o in ['--vm-expire-time']:
-                vm_expire_time = int(a)
-            elif o in ['--stdout']:
-                syslog = False
-            elif o in ['--no-fork']:
-                fork = False
-            elif o in ['--backend']:
-                backend_type_name = a
-            elif o in ['--backend-args']:
-                backend_args = a
-            elif o in ['--backend-help']:
-                help(vSPCBackendMemory)
-                sys.exit(0)
-            elif o in ['-f', '--persist-file']:
-                import pipes
-                backend_type_name = 'File'
-                backend_args = '-f %s' % pipes.quote(a)
-            elif o in ['--ssl']:
-                use_ssl = True
-            elif o in ['--cert']:
-                ssl_cert = a
-            elif o in ['--key']:
-                ssl_key = a
-            elif o in ['--pidfile']:
-                pidfile = a
-            else:
-                assert False, 'unhandled option'
-    except getopt.GetoptError, err:
-        print str(err)
-        usage()
-        sys.exit(2)
+    if opts.backend_help:
+        help(vSPCBackendMemory)
+        sys.exit(0)
 
-    if not server_mode:
+    if not opts.server_mode:
         if len(args) != 1:
-            print "Expected 1 argument, found %d" % len(args)
-            usage()
-            sys.exit(2)
+            parser.error("Expected 1 argument, found %d" % len(args))
 
-        sys.exit(do_query(args[0], admin_port))
+        sys.exit(do_query(args[0], opts.admin_port))
 
     # Server mode
 
     if len(args) > 0:
-        print "Unexpected arguments: %s" % args
-        usage()
-        sys.exit(2)
+        parser.error("Unexpected arguments: %s" % args)
 
-    if use_ssl and not ssl_cert:
-        print "Must specify certificate in order to use SSL"
-        usage()
-        sys.exit(2)
+    if opts.use_ssl and not opts.ssl_cert:
+        parser.error("Must specify certificate in order to use SSL")
 
-    backend = get_backend_type(backend_type_name)()
-    backend.setup(backend_args)
+    backend = get_backend_type(opts.backend_type_name)()
+    backend.setup(opts.backend_args)
 
     logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG if debug else logging.INFO)
-    if syslog:
+    logger.setLevel(logging.DEBUG if opts.debug else logging.INFO)
+    if not (opts.stdout or opts.debug):
         from logging.handlers import SysLogHandler
         from logging import Formatter
         formatter = Formatter(fmt="vSPC.py[%(process)d]: %(message)s")
@@ -1322,17 +1289,17 @@ if __name__ == '__main__':
         handler.setFormatter(formatter)
         logger.addHandler(handler)
 
-    if fork:
+    if not (opts.debug or opts.no_fork):
         daemonize()
-        if pidfile is not None:
-            f = open(pidfile, "w")
+        if opts.pidfile is not None:
+            f = open(opts.pidfile, "w")
             f.write("%d" % os.getpid())
             f.close()
 
     try:
         backend.start()
 
-        vSPC(proxy_port, admin_port, vm_port_start, vm_expire_time, backend, use_ssl, ssl_cert, ssl_key).run()
+        vSPC(opts.proxy_port, opts.admin_port, opts.vm_port_start, opts.vm_expire_time, backend, opts.use_ssl, opts.ssl_cert, opts.ssl_key).run()
     except KeyboardInterrupt:
         logging.info("Shutdown requested on keyboard, exiting")
         sys.exit(0)
