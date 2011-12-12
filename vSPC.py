@@ -48,6 +48,7 @@ BASENAME='vSPC.py'
 
 import logging
 import optparse
+import textwrap
 import os
 import pickle
 import select
@@ -150,6 +151,57 @@ telnet client. This port is intended for VMware connections only.\r
 
 def hexdump(data):
     return reduce(lambda x,y: x + ('%x' % ord(y)), data, '')
+
+class IndentedHelpFormatterWithNL(optparse.IndentedHelpFormatter):
+    def format_description(self, description):
+        if not description: return ""
+        desc_width = self.width - self.current_indent
+        indent = " "*self.current_indent
+        # the above is still the same
+        bits = description.split('\n')
+        formatted_bits = [
+            textwrap.fill(bit, desc_width, initial_indent=indent, subsequent_indent=indent)
+          for bit in bits]
+        result = "\n".join(formatted_bits) + "\n"
+        return result
+
+    def format_epilog(self, epilog):
+        if not epilog: return ""
+        desc_width = self.width - self.current_indent
+        indent = " "*self.current_indent
+        # the above is still the same
+        bits = epilog.split('\n')
+        formatted_bits = [
+            textwrap.fill(bit, desc_width, initial_indent=indent, subsequent_indent=indent)
+          for bit in bits]
+        result = "\n" + "\n".join(formatted_bits)
+        return result
+
+    def format_option(self, option):
+        result = []
+        opts = self.option_strings[option]
+        opt_width = self.help_position - self.current_indent - 2
+        if len(opts) > opt_width:
+          opts = "%*s%s\n" % (self.current_indent, "", opts)
+          indent_first = self.help_position
+        else: # start help on same line as opts
+          opts = "%*s%-*s  " % (self.current_indent, "", opt_width, opts)
+          indent_first = 0
+        result.append(opts)
+        if option.help:
+          help_text = self.expand_default(option)
+# Everything is the same up through here
+          help_lines = []
+          for para in help_text.split("\n"):
+            help_lines.extend(textwrap.wrap(para, self.help_width))
+# Everything is the same after here
+          result.append("%*s%s\n" % (
+            indent_first, "", help_lines[0]))
+          result.extend(["%*s%s\n" % (self.help_position, "", line)
+            for line in help_lines[1:]])
+        elif opts[-1] != "\n":
+          result.append("\n")
+        return "".join(result)
 
 class FixedTelnet(Telnet):
     '''
@@ -1119,143 +1171,117 @@ def daemonize():
     os.chdir('/')
     os.umask(0)
 
-def usage():
-    sys.stderr.write('''\
-%s (%s)
-
-Common options:
-%s: [-h|--help] [-d|--debug] [-a|--admin-port P] -s|--server|hostname
-
-Query (without --server): Connect to the --admin-port (default %s) on
-  the specified host and return a list of VMs. Output is colon
-  delimited, vm-name:vm-uuid:port.
-
-Server (with --server):
-  Additional options:
-    [-p|--proxy-port P] [-r|--port-range-start P] [--vm-expire-time seconds]
-    [--backend Backend] [--backend-args 'arg string'] [--backend-help]
-    [-f|--persist-file file] [--pidfile file]
-    [--stdout] [--no-fork]
-
-  Start Virtual Serial Port Concentrator. By default, vSPC listens on
-  port %s for VMware virtual serial connections. Each new VM is
-  assigned a listener, starting at port %s. VM to port mappings may be
-  queried using %s without the --server option (e.g. '%s localhost').
-  A standard 'telnet' may then be used to connect to the VM serial port.
-
-  In order to configure a VM to use the vSPC, you must be running ESXi 4.1+.
-  Add the serial port to the VM, then select:
-    (*) Use Network
-      (*) Server
-      Port URI: %s
-      [X] Use Virtual Serial Port Concentrator:
-      vSPC: telnet://%s:%s
-  NOTE: Direction MUST be Server, and Port URI MUST be %s
-
-  Virtual serial ports support TLS/SSL on connections to a concentrator.
-  To use TLS/SSL, configure the serial port as above, except for the
-  vSPC URI field, which should say:
-      vSPC URI: telnets://%s:%s
-  then launch vSPC.py with the --ssl, --cert, and --key (if necessary)
-  options.
-
-  To have the process id of the server written to a file, use the
-  --pidfile argument. This is useful for initscripts and other process
-  management tools.
-
-  %s makes a best effort to keep VM to port number mappings stable,
-  based on the UUID of the connecting VM. Even if a VM disconnects,
-  client connections are maintained in anticipation of the VM
-  reconnecting (e.g. if the VM is rebooting). The UUID<->port mapping
-  is maintained as long as there are either client connections or as
-  long as the VM is connected, and even after this condition is no
-  longer met, the mapping is retained for --vm-expire-time seconds
-  (default %s).
-
-  The backend of %s serves three major purposes: (a) On initial load,
-  all port mappings are retrieved from the backend. The main thread
-  maintains the port mappings after initial load, but the backend is
-  responsible for setting the initial map. (This design was chosen to
-  avoid blocking on the backend when a new VM connects.) (b) The
-  backend serves all admin connections (because it has full knowledge
-  of the mappings), (c) The backend can fire off customizable hooks as
-  VMs come and go, allowing for persistence, or database tracking, or
-  whatever.
-
-  By default, %s uses the "Memory" backend, which really just
-  means that no initial mappings are loaded on startup and all state
-  is retained in memory alone. The other builtin backend is the "File"
-  backend, which can be configured like so:
-    --backend File --backend-args '-f /tmp/vSPC'.
-  As a convenience, this same configuration can be accomplished using
-  the top level parameter -f or --persist-file, i.e. '-f /tmp/vSPC' is
-  synonymous with the previous set of arguments.
-
-  If '--backend Foo' is given but no builtin backend Foo exists, %s
-  tries to import module vSPCBackendFoo, looking for class vSPCBackendFoo.
-  See --backend-help for programming details.
-
-  Explanation of server options:
-    -a|--admin-port: The port to listen/use for queries (default %s)
-    -p|--proxy-port: The proxy port to listen on (default %s)
-    -r|--port-range-start: What port to start port allocations from (default %s)
-    --vm-expire-time: How long to wait before expiring a mapping with no connections
-    -f|--persist-file: DBM file prefix to persist mappings to (.dat/.dir may follow)
-    --backend: Name of custom backend class (see above)
-    --backend-args: Arguments to custom backend
-    --stdout: Log to stdout instead of syslog
-    --ssl: Start SSL/TLS on connections to the proxy port
-    --cert: The certificate or PEM file to use on the proxy port. Only meaningful with --ssl
-    --key: The key, if necessary, to the certificate given by --cert. Only meaningful with --ssl
-    --no-fork: Don't daemonize
-    --pidfile: The file to write the process ID of the server to (no file by default)
-    -d|--debug: Debug mode (turns up logging and implies --stdout --no-fork)
-''' % (BASENAME, __revision__, BASENAME, ADMIN_PORT, PROXY_PORT,
-       VM_PORT_START, BASENAME, BASENAME, BASENAME,
-       socket.gethostname(), PROXY_PORT, BASENAME, socket.gethostname(), PROXY_PORT,
-       BASENAME, VM_EXPIRE_TIME, BASENAME, BASENAME, BASENAME,
-       ADMIN_PORT, PROXY_PORT, VM_PORT_START))
-
 def handle_persist_file(option, opt_str, value, parser):
     import pipes
     parser.values.backend_type_name = "File"
     parser.values.backend_args = "-f %s" % pipes.quote(value)
 
-if __name__ == '__main__':
-    parser = optparse.OptionParser(add_help_option=True)
+def get_parser():
+    # We need a hostname, and the executable name.
+    hostname = socket.gethostname()
+    epilog = ("In order to configure a VM to use the vSPC, you must be running ESXi 4.1+. "
+              "Add the serial port to the VM, then select:\n "
+              "(*) Use Network\n "
+              "  (*) Server\n "
+              "    Port URI: %s\n "
+              "  [X] Use Virtual Serial Port Concentrator:\n"
+              "vSPC: telnet://%s:%s\n"
+              "NOTE: Direction MUST be Server, and Port URI MUST be %s" % (BASENAME, hostname, PROXY_PORT, BASENAME))
+    formatter = IndentedHelpFormatterWithNL()
+    parser = optparse.OptionParser(add_help_option=True, epilog=epilog, formatter=formatter)
 
-    parser.add_option("-a", "--admin-port", type="int", default=ADMIN_PORT,
+    server_options_group = optparse.OptionGroup(parser, "General",
+        description="Query (without --server): Connect to the --admin-port (default %s) on "
+                    "the specified host and return a list of VMs. Output is colon "
+                    "delimited, vm-name:vm-uuid:port.\n\n"
+                    "Server (with --server): "
+                    "Start Virtual Serial Port Concentrator. By default, vSPC listens on "
+                    "port %s for VMware virtual serial connections. Each new VM is "
+                    "assigned a listener, starting at port %s. VM to port mappings may be "
+                    "queried using %s without the --server option (e.g. '%s localhost'). "
+                    "A standard 'telnet' may then be used to connect to the VM serial port. " % (ADMIN_PORT, PROXY_PORT, VM_PORT_START, BASENAME, BASENAME))
+
+    parser.add_option_group(server_options_group)
+
+    server_options_group.add_option("-a", "--admin-port", type="int", default=ADMIN_PORT,
                       help='The port to listen/use for queries (default %s)' % ADMIN_PORT)
-    parser.add_option("-f", "--persist-file", type='string', action='callback', callback=handle_persist_file,
+    server_options_group.add_option("-f", "--persist-file", type='string', action='callback', callback=handle_persist_file,
                       help='DBM file prefix to persist mappings to (.dat/.dir may follow)')
-    parser.add_option("-d", "--debug", action='store_true', default=False,
-                      help="Debug mode (turns up logging and implies --stdout --no-fork)")
-    parser.add_option("-p", "--proxy-port", type="int", default=PROXY_PORT,
+    server_options_group.add_option("-p", "--proxy-port", type="int", default=PROXY_PORT,
                       help="The proxy port to listen on (default %s)" % PROXY_PORT)
-    parser.add_option("-r", "--port-range-start", type='int', default=VM_PORT_START, dest="vm_port_start",
+    server_options_group.add_option("-r", "--port-range-start", type='int', default=VM_PORT_START, dest="vm_port_start",
                       help="What port to start port allocations from (default %s)" % VM_PORT_START)
-    parser.add_option("-s", "--server", action='store_true', default=False, dest="server_mode",
+    server_options_group.add_option("-s", "--server", action='store_true', default=False, dest="server_mode",
                       help="Run vSPC.py as a daemon")
-    parser.add_option("--stdout", action='store_true', default=False,
-                      help="Log to stdout instead of syslog")
-    parser.add_option("--no-fork", action='store_true', default=False,
-                      help="Don't daemonize")
-    parser.add_option("--ssl", action='store_true', default=False, dest="use_ssl",
-                      help="Start SSL/TLS on connections to the proxy port")
-    parser.add_option("--cert", type='string', default=None, dest="ssl_cert",
-                      help="The certificate or PEM file to present on the proxy port, if SSL/TLS is enabled")
-    parser.add_option("--key", type='string', default=None, dest="ssl_key",
-                      help="The key, if necessary, to the certificate given by --cert")
-    parser.add_option("--backend", type='string', default="Memory", dest="backend_type_name",
-                      help='Name of custom backend class')
-    parser.add_option("--backend-args", type='string', default="",
-                      help="Arguments to custom backend")
-    parser.add_option("--backend-help", action='store_true', default=False,
-                      help='Print backend programming details')
-    parser.add_option("--pidfile", type='string', default=None,
-                      help="The file to write the process id of the server to (no file by default)")
-    parser.add_option("--vm-expire-time", type='int', default=VM_EXPIRE_TIME,
+    server_options_group.add_option("--vm-expire-time", type='int', default=VM_EXPIRE_TIME,
                       help="How long to wait before expiring a mapping with no connections")
+    server_options_group.add_option("--pidfile", type='string', default=None,
+                      help="The file to write the process id of the server to (no file by default). Useful for initscripts and other management tools")
+
+    debug_options_group = optparse.OptionGroup(parser, "Debug Options")
+    parser.add_option_group(debug_options_group)
+    debug_options_group.add_option("-d", "--debug", action='store_true', default=False,
+                      help="Debug mode (turns up logging and implies --stdout --no-fork)")
+    debug_options_group.add_option("--stdout", action='store_true', default=False,
+                      help="Log to stdout instead of syslog")
+    debug_options_group.add_option("--no-fork", action='store_true', default=False,
+                      help="Don't daemonize")
+
+    tls_options = optparse.OptionGroup(parser, "TLS Options",
+        description="Virtual serial ports support TLS/SSL on connections to a concentrator. "
+					"To use TLS/SSL, configure the serial port as above, except for the "
+					"vSPC URI field, which should say:\n "
+					"  vSPC URI: telnets://%s:%s\n"
+					"then launch vSPC.py with the appropriate options" % (hostname, PROXY_PORT))
+
+    parser.add_option_group(tls_options)
+    tls_options.add_option("--ssl", action='store_true', default=False, dest="use_ssl",
+                      help="Start SSL/TLS on connections to the proxy port")
+    tls_options.add_option("--cert", type='string', default=None, dest="ssl_cert",
+                      help="The certificate or PEM file to present on the proxy port, if SSL/TLS is enabled")
+    tls_options.add_option("--key", type='string', default=None, dest="ssl_key",
+                      help="The key, if necessary, to the certificate given by --cert")
+
+    backend_options = optparse.OptionGroup(parser, "Backend Options",
+        description="The backend of %s serves three major purposes: (a) On initial load, "
+                    "all port mappings are retrieved from the backend. The main thread "
+					"maintains the port mappings after initial load, but the backend is "
+					"responsible for setting the initial map. (This design was chosen to "
+					"avoid blocking on the backend when a new VM connects.) (b) The "
+					"backend serves all admin connections (because it has full knowledge "
+					"of the mappings), (c) The backend can fire off customizable hooks as "
+					"VMs come and go, allowing for persistence, or database tracking, or "
+					"whatever.\n\n"
+					"%s makes a best effort to keep VM to port number mappings stable, "
+					"based on the UUID of the connecting VM. Even if a VM disconnects, "
+					"client connections are maintained in anticipation of the VM "
+					"reconnecting (e.g. if the VM is rebooting). The UUID<->port mapping "
+					"is maintained as long as there are either client connections or as "
+					"long as the VM is connected, and even after this condition is no "
+					"longer met, the mapping is retained for --vm-expire-time seconds "
+					"(default %s).\n\n"
+					"By default, %s uses the \"Memory\" backend, which really just "
+					"means that no initial mappings are loaded on startup and all state "
+					"is retained in memory alone. The other builtin backend is the \"File\" "
+					"backend, which can be configured like so: "
+					"--backend File --backend-args '-f /tmp/vSPC'. "
+					"As a convenience, this same configuration can be accomplished using "
+					"the top level parameter -f or --persist-file, i.e. '-f /tmp/vSPC' is "
+					"synonymous with the previous set of arguments." % (BASENAME, BASENAME,
+                                                                  VM_EXPIRE_TIME, BASENAME))
+
+    parser.add_option_group(backend_options)
+    backend_options.add_option("--backend", type='string', default="Memory", dest="backend_type_name",
+                      help='Name of custom backend class')
+    backend_options.add_option("--backend-args", type='string', default="",
+                      help="Arguments to custom backend")
+    backend_options.add_option("--backend-help", action='store_true', default=False,
+                      help='Print backend programming details')
+
+    return parser
+
+if __name__ == '__main__':
+    parser = get_parser()
     (opts, args) = parser.parse_args()
 
     if opts.backend_help:
