@@ -152,6 +152,8 @@ telnet client. This port is intended for VMware connections only.\r
 def hexdump(data):
     return reduce(lambda x,y: x + ('%x' % ord(y)), data, '')
 
+# adapted from 
+# https://groups.google.com/group/comp.lang.python/msg/09f28e26af0699b1
 class IndentedHelpFormatterWithNL(optparse.IndentedHelpFormatter):
     def format_description(self, description):
         if not description: return ""
