@@ -60,6 +60,7 @@ import threading
 import time
 import traceback
 import Queue
+from guppy import hpy
 from telnetlib import *
 from telnetlib import IAC,DO,DONT,WILL,WONT,BINARY,ECHO,SGA,SB,SE,NOOPT,theNULL
 
@@ -1640,7 +1641,8 @@ class MemoryManhole(Poller):
 
     def process_manhole_connection(self, c):
         conn = c.accept()[0]
-        conn.send("Testing")
+        h = hpy()
+        conn.send(h.heapu())
         conn.close()
 
 def get_backend_type(shortname):
