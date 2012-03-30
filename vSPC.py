@@ -1609,6 +1609,38 @@ class AdminProtocolClient(Poller):
         finally:
             self.quit()
 
+class MemoryManhole(Selector):
+    """
+    I start a thread that listens for connections. If I receive a connection, I
+    print memory usage information to that connection, then exit.
+    """
+    def __init__(self):
+        self._thread = None
+
+    def start(self, port=13372):
+        self._thread = self._start_thread(self.start_manhole(port))
+
+    def _start_thread(self, f):
+        th = threading.Thread(target = f)
+        th.daemon = True
+        th.start()
+
+        return th
+
+    def start_manhole(self, port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setblocking(0)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+        sock.bind(("localhost", port))
+        sock.listen(LISTEN_BACKLOG)
+        self.add_reader(sock, self.process_manhole_connection)
+        self.run_forever()
+
+    def process_manhole_connection(self, c):
+        conn = c.accept()[0]
+        conn.write("Testing")
+        conn.close()
+
 def get_backend_type(shortname):
     name = "vSPCBackend" + shortname
     if globals().has_key(name):
