@@ -1642,7 +1642,13 @@ class MemoryManhole(Poller):
     def process_manhole_connection(self, c):
         conn = c.accept()[0]
         h = hpy()
-        conn.send(h.heapu())
+        conn.send("Heap:\n")
+        s = str(h.heap())
+        conn.send(s)
+        conn.send("\n")
+        conn.send("Unreachable: \n")
+        s = str(h.heapu())
+        conn.send(s)
         conn.close()
 
 def get_backend_type(shortname):
