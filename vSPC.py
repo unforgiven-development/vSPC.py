@@ -1619,7 +1619,8 @@ class MemoryManhole(Poller):
         self._thread = None
 
     def start(self, port=13372):
-        self._thread = self._start_thread(self.start_manhole(port))
+        self.port = port
+        self._thread = self._start_thread(self.start_manhole)
 
     def _start_thread(self, f):
         th = threading.Thread(target = f)
@@ -1628,18 +1629,18 @@ class MemoryManhole(Poller):
 
         return th
 
-    def start_manhole(self, port):
+    def start_manhole(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setblocking(0)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-        sock.bind(("localhost", port))
+        sock.bind(("localhost", self.port))
         sock.listen(LISTEN_BACKLOG)
         self.add_reader(sock, self.process_manhole_connection)
         self.run_forever()
 
     def process_manhole_connection(self, c):
         conn = c.accept()[0]
-        conn.write("Testing")
+        conn.send("Testing")
         conn.close()
 
 def get_backend_type(shortname):
