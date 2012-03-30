@@ -30,7 +30,7 @@ import os
 import sys
 
 from optparse import OptionParser, OptionValueError
-from vSPC import vSPC, get_backend_type
+from vSPC import vSPC, MemoryManhole, get_backend_type
 
 # Default for --proxy-port, the port to send VMs to.
 PROXY_PORT = 13370
@@ -134,6 +134,7 @@ if __name__=="__main__":
 
     try:
         backend.start()
+        MemoryManhole().start()
 
         vSPC(options.proxy_port, options.admin_port, options.vm_port_start, options.vm_expire_time, backend, options.ssl, options.cert, options.key).run()
     except KeyboardInterrupt:
