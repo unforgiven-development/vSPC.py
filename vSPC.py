@@ -1615,6 +1615,7 @@ class MemoryManhole(Poller):
     print memory usage information to that connection, then exit.
     """
     def __init__(self):
+        Poller.__init__(self)
         self._thread = None
 
     def start(self, port=13372):
