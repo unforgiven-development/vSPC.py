@@ -1609,7 +1609,7 @@ class AdminProtocolClient(Poller):
         finally:
             self.quit()
 
-class MemoryManhole(Selector):
+class MemoryManhole(Poller):
     """
     I start a thread that listens for connections. If I receive a connection, I
     print memory usage information to that connection, then exit.
