@@ -1518,16 +1518,20 @@ class AdminProtocolClient(Poller):
             self.destination.write(c)
 
     def process_escape_character(self):
-        self.restore_for_prompt()
+        self.restore_terminal()
         ret = ""
         # make sure the prompt shows up on its own line.
         self.destination.write("\n")
         while True:
             self.destination.write("vspc> ")
-            c = self.command_src.readline().strip()
+            try:
+                c = self.command_source.readline().strip()
+            except EOFError:
+                c = "quit"
             if c == "quit":
                 self.quit()
-            elif c == "continue":
+            # treat enter/return as continue
+            elif c == "continue" or c == "":
                 break
             elif c == "print-escape":
                 ret = CLIENT_ESCAPE_CHAR
@@ -1580,13 +1584,6 @@ class AdminProtocolClient(Poller):
         fd = self.command_source
         termios.tcsetattr(fd, termios.TCSAFLUSH, self.oldterm)
         fcntl.fcntl(fd, fcntl.F_SETFL, self.oldflags)
-
-    def restore_for_prompt(self):
-        self.restore_terminal()
-        fd = self.command_source
-        newattr = self.oldterm[:]
-        newattr[0] = newattr[0] & ~termios.IGNBRK
-        termios.tcsetattr(fd, termios.TCSANOW, newattr)
 
     def quit(self):
         self.restore_terminal()
