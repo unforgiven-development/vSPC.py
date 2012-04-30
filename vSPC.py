@@ -1250,6 +1250,7 @@ class vSPC(Poller, VMExtHandler):
             return False
 
         vm = self.vms[vt.uuid]
+        logging.info("got vmotion begin for vm '%s'" % vm.name)
         if vm.vmotion:
             return False
 
@@ -1269,6 +1270,7 @@ class vSPC(Poller, VMExtHandler):
         peer_uuid = self.vmotions[data]
         if vt.uuid:
             vm = self.vms[vt.uuid]
+            logging.info("got vmotion peer for vm '%s'" % vm.name)
             if vm.uuid != peer_uuid:
                 logging.debug('peer uuid %s != other uuid %s' % hexdump(data))
                 return False
@@ -1281,14 +1283,14 @@ class vSPC(Poller, VMExtHandler):
         return True
 
     def handle_vmotion_complete(self, vt):
-        logging.debug('uuid %s vmotion complete' % vt.uuid)
         vm = self.vms[vt.uuid]
+        logging.info("vmotion complete for vm '%s'" % vm.name)
         del self.vmotions[vm.vmotion]
         vm.vmotion = None
 
     def handle_vmotion_abort(self, vt):
-        logging.debug('uuid %s vmotion abort' % vt.uuid)
         vm = self.vms[vt.uuid]
+        logging.info("vmotion aborted for vm '%s'" % vm.name)
         if vm.vmotion:
             del self.vmotions[vm.vmotion]
             vm.vmotion = None
