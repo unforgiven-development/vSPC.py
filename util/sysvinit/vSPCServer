@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # vSPCServer    Startup script for the virtual Serial Concentrator server
 # chkconfig: - 99 01

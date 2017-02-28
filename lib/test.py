@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # vSPC/test.py -- functionality that's useful for testing parts of the
 # project.
 
