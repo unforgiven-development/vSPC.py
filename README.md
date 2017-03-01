@@ -1,78 +1,90 @@
-# Overview
+# vSPC.py #
 
-vSPC.py is a Virtual Serial Port Concentrator (also known as a virtual
-serial port proxy) that makes use of the
-[VMware telnet extensions](http://www.vmware.com/support/developer/vc-sdk/visdk41pubs/vsp41_usingproxy_virtual_serial_ports.pdf).
+## OVERVIEW ##
 
-# Features
+**vSPC.py** is a _Virtual Serial Port Concentrator_ (also known as a virtual serial port proxy) that makes use of the
+[VMware telnet extensions][1].
 
-- Point any number of virtual serial ports to a single vSPC.py server
-(great for cloned VMs)
-- Multiplexed client connects: Multiple entities can interact with the
-same console. Also allows for gdb connections while monitoring the console.
-- Port mappings are sticky - port number will stay constant as long as
-the VM or a client is connected, with a set expiration timer after all
-connections terminate
+
+### Features ###
+
+- Point any number of virtual serial ports to a single vSPC.py server (great for cloned VMs)
+- Multiplexed client connects: Multiple entities can interact with the same console. Also allows for gdb connections
+  while monitoring the console.
+- **Port mappings are "sticky"** - port number will stay constant as long as the VM or a client is connected, with a set
+   expiration timer after all connections terminate
 - vMotion is fully supported
-- Query interface allows you to see VM name, UUID, port mappings on the
-vSPC.py server
-- Clients can connect using standard telnet, binary mode is negotiated
-automatically
+- Query interface allows you to see VM name, UUID, port mappings on the vSPC.py server
+- Clients can connect using standard telnet, binary mode is negotiated automatically
 
-# Lineage
 
-This began as is a fork of the
-[vSPC.py project hosted at SourceForge](http://sourceforge.net/p/vspcpy/home/Home/)
-written by Zach Loafman while at EMC Isilon. It languished until it was
-forked by [Kevan Carstensen on github](https://github.com/isnotajoke) and
-extensively refactored and enhanced. Changes introduced since the SF fork
-include SSL support for connections between ESX hosts and vSPC.py, console
-activity logging, and some other minor improvements.
+### Project History ###
 
-Kevan's fork was re-forked by EMC Isilon to address bugs as we began using
-it heavily in our environment once more.
+This began as a fork of the **vSPC.py project**, hosted at [SourceForge][2], and written by **Zach Loafman** while at
+**EMC Isilon**. It languished until it was forked by **Kevan Carstensen** on [GitHub][3] and extensively refactored
+and enhanced.
 
-# Requirements
 
-Python 2.5 or better is required, due to use of the 'with' statement and
-other syntax that was introduced in Python 2.5. It's being developed against
-Python 2.6, however, since that's the currently-shipping version for
-RHEL/CentOS 6.
+#### Improvements ####
 
-Due to the use of epoll in the server implementation, Linux is required.
-There may be other issues associated with using vSPC.py on other OSs, as
-large parts of vSPC.py were only developed & tested on Linux.
+Changes introduced since the "SourceForge fork" include:
+- SSL support for connections between ESX hosts and vSPC.py
+- console activity logging
+- a variety of other minor improvements
 
-VMWare ESXi 4.1 through 5.5 are supported.
+Kevan's fork _(at [GitHub][3a])_ was re-forked by **EMC Isilon** to address various bugs, as we began using it heavily
+in our environment once more.
 
-# Configuring VMs to connect to the concentrator
 
-In order to configure a VM to use the virtual serial port concentrator,
-you must be running ESXi 4.1+. You must also have a software license
-level that allows you to use networked serial ports.
+## System Requirements ##
 
-First, add a networked virtual serial port to the VM. Configure it as
-follows:
+At the time of the initial implementation _(circa 2011)_, **Python 2.5** or better is/_was_ required, due to use of the
+``with`` statement and other syntax that was introduced in **Python 2.5**. It's being developed against **Python 2.6**,
+however, since that's the currently-shipping version for **RHEL/CentOS 6**. Though **RHEL/CentOS 6** may still be used
+"_in the wild_", the **Python 2.7** branch is probably the best recommendation in terms of **Python** -- it's shipping
+with _(essentially)_ all "modern" distributions of "UNIX-like" operating systems.
 
-```
-    (*) Use Network
-      (*) Server
-      Port URI: vSPC.py
-      [X] Use Virtual Serial Port Concentrator:
-      vSPC: telnet://hostname:proxy_port
-```
-NOTE: Direction MUST be Server, and Port URI MUST be vSPC.py. 
+**AS AN IMPORTANT NOTE:**
+  _It's been witnessed that the **Python 3.x** series of releases **DO NOT** work._
 
-where hostname is the FQDN (or IP address) of the machine running the
-virtual serial port concentrator, and proxy_port is the port that you've
-configured the concentrator to listen for VM connections on. Virtual
-serial ports support TLS/SSL on connections to a concentrator.  To use
-TLS/SSL, configure the serial port as above, except for the vSPC field,
-which should specify telnets instead of telnet. For this to work
-correctly, you'll also need to launch the server with the --ssl, --cert,
-and possibly --key options.
+**ADDITIONALLY:**
+  _Due to the use of ``epoll`` in the server implementation_, **Linux is required**. Beyond the ``epoll`` requirement,
+  there may be other issues associated with using **vSPC.py** on "_other OSs_", as large parts of **vSPC.py** were only
+  developed, tested, and therefore **known to work** on Linux.
 
-# Running the Concentrator
+
+### VMware ESXi ###
+
+At the time this documentation was originally created, **VMWare ESXi 4.1** through **5.5** are confirmed supported.
+
+
+## USAGE ##
+
+### Building the distribution ###
+
+**NOTE**: _There remains some incomplete infomration in this section._ At some point, it is likely that this section
+           will be "spun off" into a dedicated file _(think "**INSTALL.md**)_.
+
+- building the **source** distribution
+  ```
+  ./setup.py sdist
+  ```
+- building the **binary** distribution
+  ```
+  ./setup.py bdist
+  ```
+- building **all** _(the "**python2-setuptools**" way)_
+  ```
+  ./setup.py build
+  ```
+- building an **rpm** package
+  ```
+  ./setup.py sdist
+  rpmbuild -ta vSPC-<version>.tar.gz
+  ```
+
+
+### Running the Concentrator ###
 
 You run the concentrator through the vSPCServer program. The vSPCServer
 program is configurable with a number of options, documented below and
@@ -128,28 +140,66 @@ If '--backend Foo' is given but no builtin backend Foo exists, vSPC.py
 tries to import module vSPCBackendFoo, looking for class vSPCBackendFoo.
 Use --help with the desired --backend for help using that backend.
 
-# Building the distribution
+### Configuring VMs to connect to the concentrator ###
 
-source distribution
-```
-/path/to/your/python setup.py sdist
-```
+In order to configure a VM to use the virtual serial port concentrator, you must be running **ESXi 4.1+**. You must also
+have a software license level that allows you to use networked serial ports.
 
-binary distribution
-```
-/path/to/your/python setup.py bdist
-```
+First, add a networked virtual serial port to the VM. Configure it as follows:
 
-build rpm
 ```
-/path/to/your/python setup.py sdist
-rpmbuild -ta vSPC-<version>.tar.gz
+    (*) Use Network
+      (*) Server
+      Port URI: vSPC.py
+      [X] Use Virtual Serial Port Concentrator:
+      vSPC: telnet://hostname:proxy_port
 ```
+**NOTE**: Direction MUST be Server, and Port URI MUST be vSPC.py. 
 
-# Authors
+where hostname is the FQDN (or IP address) of the machine running the
+virtual serial port concentrator, and proxy_port is the port that you've
+configured the concentrator to listen for VM connections on. Virtual
+serial ports support TLS/SSL on connections to a concentrator.  To use
+TLS/SSL, configure the serial port as above, except for the vSPC field,
+which should specify telnets instead of telnet. For this to work
+correctly, you'll also need to launch the server with the --ssl, --cert,
+and possibly --key options.
 
-- Zach Loafman (initial implementation)
-- Kevan Carstensen (SSL support, logging backend, lazy client connections to VMs, internal work necessary to support lazy connections to VMs)
-- Dave Johnson (fixes for missing getopt modules and missing shelf.sync() calls)
-- Fabien Wernli (add options to configure listen interface, fix broken -f option, packaging improvements)
-- Casey Peel (simplified backend argument parsing, fix connection leaks, and improved logging performance)
+
+## Authors ##
+
+**As another point of note**: This section will likely be "_spun off_" into its own file, as well.
+                              _(think **AUTHORS.md** or **CONTRIBUTORS.md**)_
+
+- **Zach Loafman**
+  + _initial implementation_
+- **Kevan Carstensen**
+  + _SSL support_
+  + _logging backend_
+  + _lazy client connections to VMs_
+    * _internal work necessary to support lazy connections to VMs_
+- **Dave Johnson**
+  + _fixes for missing ``getopt`` modules and missing ``shelf.sync()`` calls_
+- **Fabien Wernli**
+  + _add options to configure listen interface_
+  + _fix broken ``-f`` option_
+  + _packaging improvements_
+- **Casey Peel**
+  + _simplified backend argument parsing_
+  + _fixed various connection leaks_
+  + _improved logging performance_
+- **Gerad Munsch** <<gmunsch@unforgivendevelopment.com>>
+  + _converted **shebangs** to prefer use of **Python 2.x**_
+    * _improves compatibility with most any **POSIX**-based OS_
+	  - _most notably, **Arch Linux**_
+	  - _should work on pretty much anything -- **Debian 8**, **Arch Linux ARM**, etc..._
+  +  _added **systemd** startup handlers and configuration_
+  + _reformatted **markdown** documents, such as this one_
+
+
+
+
+[1]:	<http://www.vmware.com/support/developer/vc-sdk/visdk41pubs/vsp41_usingproxy_virtual_serial_ports.pdf>
+[2]:	<http://sourceforge.net/p/vspcpy/home/Home/>
+[3]:	<https://github.com/isnotajoke>
+[3a]:	<https://github.com/isnotajoke/vSPC.py>

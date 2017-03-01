@@ -1,0 +1,21 @@
+# systemd service file for vSPCServer (a Python2-based implementation of a VMware "Virtual Serial Port Concentrator" server)
+
+[Unit]
+Description=A Python2-based implementation of a VMware "Virtual Serial Port Concentrator" server
+Wants=network.target
+Documentation=https://github.com/unforgiven-development/vSPC.py
+
+[Service]
+Type=simple
+
+EnvironmentFile=/etc/conf.d/vSPCServer
+
+#Username=vspc
+
+PIDFile=/var/run/vSPC/Server.pid
+ExecStart=/usr/bin/vSPCServer -f /var/run/vSPC/vm-mapping.db
+
+
+
+[Install]
+WantedBy=multi-user.target

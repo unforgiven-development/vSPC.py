@@ -1,0 +1,8 @@
+#
+# /etc/conf.d/vSPCServer
+#
+
+#####
+## A drop-in configuration file for the 'vSPCServer.service' systemd service.
+#####
+
