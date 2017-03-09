@@ -2,7 +2,10 @@
 # .gitignore
 #
 
-# python2-setuptools related files/directories #
+## python2-setuptools related files/directories ##
 build/
 dist/
 *.egg-info/
+
+## python-related binaries ##
+*.pyc
